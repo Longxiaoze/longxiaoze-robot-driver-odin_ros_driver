@@ -87,7 +87,7 @@ For ROS2 Humble installation, please refer to:
 
 ### 3.1 Create Udev rules 
 ```shell
-sudo vim /etc/udev/rules.d/99-odin-usb.rules
+sudo gedit /etc/udev/rules.d/99-odin-usb.rules
 ```
 Add the following content to the 99-odin-usb.rules file
 ```shell
