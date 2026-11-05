@@ -497,6 +497,20 @@ if(TARGET_PLATFORM STREQUAL "arm")
     message(STATUS "Adding ARM-specific link options and RPATH")
 endif()
 
+# Route the bundled static SDK's USB event processing to its private context.
+target_sources(host_sdk_sample PRIVATE src/sdk_usb_context.cpp)
+set_property(TARGET host_sdk_sample APPEND_STRING PROPERTY LINK_FLAGS
+    " -Wl,--wrap=libusb_init -Wl,--wrap=libusb_exit -Wl,--wrap=libusb_handle_events_timeout -Wl,--wrap=libusb_interrupt_event_handler")
+
+if(BUILD_TESTING)
+    enable_testing()
+    add_executable(sdk_usb_context_test
+        test/sdk_usb_context_test.cpp
+        src/sdk_usb_context.cpp
+    )
+    add_test(NAME sdk_usb_context_test COMMAND sdk_usb_context_test)
+endif()
+
 # Add debug information
 message(STATUS "=======================================")
 message(STATUS "Project: ${PROJECT_NAME}")

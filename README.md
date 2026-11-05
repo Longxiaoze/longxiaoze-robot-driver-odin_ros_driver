@@ -1,160 +1,111 @@
-# Odin_ROS_Driver Readme
+# Odin ROS Driver
 
-ROS driver suite for Odin sensor modules (Manifold Tech Ltd.) 
+Odin1 传感器 ROS 驱动，提供图像、IMU、里程计、点云和 SLAM 数据接口。
+本仓库基于 Manifold Tech 的 Odin ROS Driver，维护本机部署说明与 USB 崩溃修复。
 
-Odin1 wiki: https://manifoldtechltd.github.io/wiki/Odin1/Cover.html
+- 当前仓库：[Longxiaoze/longxiaoze-robot-driver-odin_ros_driver](https://github.com/Longxiaoze/longxiaoze-robot-driver-odin_ros_driver)
+- 默认分支：`main`
+- ROS 包名：`odin_ros_driver`
+- 厂商资料：[Odin1 Wiki](https://manifoldtechltd.github.io/wiki/Odin1/Cover.html)
 
-## Odin_ROS_Driver
+| 文档 | 内容 |
+| --- | --- |
+| [install.md](install.md) | 参考终端历史整理的依赖安装、USB 权限、编译与 OpenCV 排查 |
+| [easyrun.md](easyrun.md) | 日常启动、数据检查、配置、地图保存和输出路径 |
+| [update.md](update.md) | 更新源码、备份配置、回归验证和 Git 推送 |
+| [USB 崩溃修复](docs/usb_startup_crash.md) | 启动及退出崩溃的原因、实现与实机验证 |
+| [运行时服务](docs/runtime_service_operations.md) | AE/AWB、保存地图、算法复位及日志服务 |
+| [重定位指南](RELOCALIZATION_GUIDE.md) | 地图重定位的配置与使用 |
+| [上游版本记录](CHANGELOG.md) | 厂商版本变更记录 |
 
-Compatibility:
+## 1. 版本与验证环境
 
-● ROS 1(LTS Release: Noetic recommended)
+| 项目 | 当前状态 |
+| --- | --- |
+| 驱动版本 | `0.14.4` |
+| 已验证系统 | Ubuntu 22.04.5 LTS，Jetson aarch64 |
+| 已验证 ROS | ROS 2 Humble，`/opt/ros/humble` |
+| 工作空间 | `/home/techshare/longxiaoze_ws`，下文简写为 `~/longxiaoze_ws` |
+| 源码目录 | `~/longxiaoze_ws/src/longxiaoze-robot-driver-odin_ros_driver` |
+| 实机固件信息 | SoC `0.14.1`，SLAM `0.13.0`；此处记录测试版本 |
+| OpenCV | 驱动使用 4.8.0；系统 `cv_bridge` 另依赖 4.5.4，详见安装文档 |
 
-● ROS 2(LTS Release: Humble recommended)
+源码包含 ROS 1 和 ROS 2 分支；本次构建及实机验证覆盖 ROS 2 Humble。
+ROS 1 和其他发行版未在本机复测。
 
-## Important Notice:
+2026-11-05 已验证：构建成功，1 项回归测试通过，完整 launch 收到图像、
+IMU、里程计和点云，Ctrl+C 正常退出。观察窗口为 25 秒。
+RGB 参数设置超时仍存在，指定分辨率和帧率是否生效尚未验证。
 
-This driver package provides core functionality for point cloud SLAM applications and targets specific use cases. It is intended exclusively for technical professionals conducting secondary development. End users must perform scenario-specific optimization and custom development to align with operational requirements in practical deployment environments.
+## 2. 安装与构建入口
 
-## 1. Version
+首次安装先完成 [install.md](install.md) 中的 ROS、系统依赖和 USB 权限配置，
+再下载当前仓库：
 
-Current version: v0.14.4
-
-Required device firmware version: v0.14.0
-
-## 2. Preparation
-
-### 2.1 OS Requirement
-
-● Ubuntu 20.04 for ROS Noetic and ROS2 Foxy;
-
-● Ubuntu 22.04 for ROS2 Humble;
-
-● Ubuntu 18.04 is currently not supported;
-
-● Ubuntu 24.04 is not officially supported but may work with some modifications.
-
-### 2.2 Dependencies
-
-● Opencv >= 4.2.0(recommand 4.5.5/4.8.0. Make sure only one version of opencv is installed)
-
-● yaml-cpp
-
-● thread
-
-● OpenSSL
-
-● Eigen3
-
-### 2.3 Dependencies Install
-
-#### 2.3.1 System
-```shell
-sudo apt update
-sudo apt-get install build-essential cmake git libgtk2.0-dev pkg-config libavcodec-dev libavformat-dev libswscale-dev
+```bash
+mkdir -p ~/longxiaoze_ws/src
+cd ~/longxiaoze_ws/src
+git clone https://github.com/Longxiaoze/longxiaoze-robot-driver-odin_ros_driver.git
+source /opt/ros/humble/setup.bash
+cd ~/longxiaoze_ws
+colcon build --packages-select odin_ros_driver \
+  --cmake-args -DBUILD_SYSTEM=ROS2 -DBUILD_TESTING=ON
+source install/setup.bash
+colcon test --packages-select odin_ros_driver
+colcon test-result --verbose
 ```
 
-#### 2.3.2 yaml-cpp
-```shell
-sudo apt update
-sudo apt install -y libyaml-cpp-dev
-```
+已有源码时使用 [update.md](update.md) 中的更新流程。
+本文采用直接 `colcon build`；旧构建脚本的行为说明见安装文档。
 
-#### 2.3.3 libusb
-```shell
-sudo apt update
-sudo apt install -y libusb-1.0-0-dev
-```
+SDK 已随仓库提供，CMake 从源码的 `lib/` 目录自动选取：
 
-#### 2.3.4 opencv
-```shell
-sudo apt update
-sudo apt-get install libopencv-dev
-```
+| 架构 | SDK 静态库 |
+| --- | --- |
+| ARM / aarch64 | [lib/liblydHostApi_arm.a](lib/liblydHostApi_arm.a) |
+| x86_64 | [lib/liblydHostApi_amd.a](lib/liblydHostApi_amd.a) |
 
-#### 2.3.4 ROS install
+本机实际使用
+`/home/techshare/longxiaoze_ws/src/longxiaoze-robot-driver-odin_ros_driver/lib/liblydHostApi_arm.a`。
+驱动可执行文件安装在
+`~/longxiaoze_ws/install/odin_ros_driver/lib/odin_ros_driver/host_sdk_sample`。
 
-For ROS Noetic installation, please refer to:
-[ROS Noetic installation instructions](https://wiki.ros.org/noetic/Installation)
+## 3. 运行与配置
 
-For ROS2 Foxy installation, please refer to:
-[ROS Foxy installation instructions](https://docs.ros.org/en/foxy/Installation/Ubuntu-Install-Debians.html)
+### 3.1 快速启动
 
-For ROS2 Humble installation, please refer to:
-[ROS Humble installation instructions](https://docs.ros.org/en/humble/Installation/Ubuntu-Install-Debians.html)
-
-## 3. Preparation
-
-### 3.1 Create Udev rules 
-```shell
-sudo gedit /etc/udev/rules.d/99-odin-usb.rules
-```
-Add the following content to the 99-odin-usb.rules file
-```shell
-SUBSYSTEM=="usb", ATTR{idVendor}=="2207", ATTR{idProduct}=="0019", MODE="0666", GROUP="plugdev"
-```
-Reload rules and reinsert devices
-```shell
-sudo udevadm control --reload
-sudo udevadm trigger
-```
-### 3.2 OS Requirement
-```shell
-git clone https://github.com/manifoldsdk/odin_ros_driver.git catkin_ws/src/odin_ros_driver
-```
-Note:
-Please clone the source code into the "[ros_workspace]/src/" folder, otherwise compilation errors will occur.
-
-### 3.3 make
-
-#### 3.3.1 ROS1 (Noetic for example):
-
-```shell
-source /opt/ros/noetic/setup.bash
-./script/build_ros.sh
-```
-
-#### 3.3.2 ROS2 (Foxy for example):
-
-```shell
-source /opt/ros/foxy/setup.bash
-./script/build_ros2.sh
-```
-
-### 3.4 run:
-
-#### 3.4.1 ROS1 (Noetic for example):
-
-```shell
-source [ros_workspace]/devel/setup.bash
-roslaunch odin_ros_driver [launch file]
-```
-● odin_ros_driver: package name;
-
-● launch file: launch file;
-
-● ros_workspace: User's ROS environment workspace;
-```shell
-roslaunch odin_ros_driver odin1_ros1.launch
-```
-#### 3.4.2 ROS2 (Foxy for example):
-
-```shell
-source [ros2_workspace]/install/setup.bash
-ros2 launch odin_ros_driver [launch file]
-```
-● odin_ros_driver: package name;
-
-● launch file: launch file;
-
-● ros2_workspace: User's ROS2 environment workspace;
-
-ROS2 Demo Launch Instructions:
-```shell
+```bash
+source /opt/ros/humble/setup.bash
+cd ~/longxiaoze_ws
+source install/setup.bash
 ros2 launch odin_ros_driver odin1_ros2.launch.py
 ```
 
-### 3.5 Operation Mode:
+连接成功后应出现 `Device ready and streams activated`。
+按 Ctrl+C 正常退出。只需要主驱动时，可使用
+`ros2 run odin_ros_driver host_sdk_sample`。
+话题检查、建图和服务调用见 [easyrun.md](easyrun.md)。
+
+### 3.2 配置与输出路径
+
+主配置为 [config/control_command.yaml](config/control_command.yaml)，
+RViz 配置为 [config/odin_ros2.rviz](config/odin_ros2.rviz)。
+修改源码配置后重新构建，使安装目录中的辅助节点配置同步更新。
+当前主驱动未使用 launch 传入的 `config_file` 参数选择配置文件。
+
+| 内容 | 本机路径 |
+| --- | --- |
+| 主标定文件 | `~/.ros/odin_ros_driver/calib.yaml` |
+| ROS launch 日志 | `~/.ros/log/` |
+| 默认设备日志 | `~/longxiaoze_ws/src/odin_ros_driver/log/` |
+| 默认地图 | `~/longxiaoze_ws/src/odin_ros_driver/map/` |
+| 开启记录后的数据 | `~/longxiaoze_ws/src/odin_ros_driver/recorddata/` |
+
+输出目录中的 `src/odin_ros_driver` 是当前代码保留的运行时路径，
+与 Git 源码目录名不同。标定目录可通过 `ODIN_CALIB_DIR` 设置，
+地图位置可通过 `mapping_result_dest_dir` 设置；细节见快速运行文档。
+
+### 3.3 Operation Modes / 工作模式
 
 The operation mode can be configured via the `custom_map_mode` parameter in config/control_command.yaml.
 
@@ -184,15 +135,15 @@ Note that relocalization performance is highly environment-dependent. In highly 
 
 If relocalization fails initially, the system will temporarily operate in a fallback SLAM mode (map saving is disabled in this state). During this time, you can freely move odin1. It will continue relocalization attempts in the background. Once successful, the TF between map and odom frames will be published. (Tip: Gently shaking or moving the device after initialization can help improve relocalization accuracy.)
 
-The following topics are published in the odom frame: `/odin1/cloud_slam, /odin1/odom, /odin1/highodom and /odin1/path`. To obtain these in the map frame, apply the TF from odom frame to map frame.
+The following topics are published in the odom frame: `/odin1/cloud_slam`, `/odin1/odometry`, `/odin1/odometry_highfreq` and `/odin1/path`. To obtain these in the map frame, apply the TF from odom frame to map frame.
 
 ## 4. File structure and data format
 ### 4.1 File structure
 ```shell
-Odin_ROS_Driver/                // ROS1/ROS2 driver package
-    3rdparty/                   // Third-party libraries
+longxiaoze-robot-driver-odin_ros_driver/ // Git repository; ROS package: odin_ros_driver
     src/
         host_sdk_sample.cpp     // Example source code
+        sdk_usb_context.cpp     // SDK private USB context adapter
         yaml_parser.cpp         // Source code for reading yaml parameters
         rawCloudRender.cpp      // Source code for RenderCloud
         depth_image_ros_node.cpp //depth_image_ros_node
@@ -203,7 +154,7 @@ Odin_ROS_Driver/                // ROS1/ROS2 driver package
         cloud_reprojection_ros.cpp //Source code for cloud reprojection node (ROS1/ROS2)
         cloud_reprojector.cpp   //Core logic for cloud reprojection
     lib/
-        liblydHostApi_amd.a     // Static library for AMD platform
+        liblydHostApi_amd.a     // Static library for x86_64
         liblydHostApi_arm.a     // Static library for ARM platform
     include/
         host_sdk_sample.h       // Example header file
@@ -219,22 +170,28 @@ Odin_ROS_Driver/                // ROS1/ROS2 driver package
         cloud_reprojector.hpp   // Core class for cloud reprojection
     config/
         control_command.yaml    // Control parameter file for driver
-        calib.yaml              // Machine calibration yaml，differ for each individual device. Retrieved from the device everytime it connects to ROS driver
+        calib.yaml              // Optional device-specific backup; primary file is ~/.ros/odin_ros_driver/calib.yaml
     launch_ROS1/
         odin1_ros1.launch       // ROS1 launch file
     launch_ROS2/
         odin1_ros2.launch.py    // ROS2 launch file
     script/
-        build_ros1.sh           // Installation script for ROS1
-        build_ros2.sh           // Installation script for ROS2
-    recorddata/                 // holds recorded data that can import into MindCloud
+        build_ros.sh            // Legacy ROS1 build script
+        build_ros2.sh           // Legacy ROS2 build script; see install.md
+    test/
+        sdk_usb_context_test.cpp // USB context regression test
+    docs/                       // Runtime services and USB fix details
+    install.md                  // Installation and build
+    easyrun.md                  // Daily operations
+    update.md                   // Update, verify, and push
+    recorddata/                 // Runtime output; actual path depends on workspace
     log/                        // holds log files
         Driver_{timestamp}/     // holds all log folders for each time driver started
             Conn_{timestamp}/   // holds all log files for each odin1 device connection
                 dev_status.csv  // device status log file
     README.md                   // Usage instructions
     CMakeLists.txt              // CMake build file
-    License                     // License file
+    LICENSE                     // License file
 ```
 ### 4.2 File structure
 | Launch File Name         | Description |
@@ -250,16 +207,16 @@ Internal parameters of the Odin ROS driver are defined in config/control_command
 |---------------------|----------------------|----------------------|
 | odin1/imu                     | sendimu           | Imu Topic |
 | odin1/image                   | sendrgb           | RGB Camera Topic, decoded from original jpeg data from device, bgr8 format |
-| odin1/image_undistort         | sendrgbundistort  | undistorted RGB Camera Topic, processed with calib.yaml from device |
+| odin1/image/undistorted         | sendrgbundistort  | undistorted RGB Camera Topic, processed with calib.yaml from device |
 | odin1/image/compressed        | sendrgbcompressed | RGB Camera compressed Topic, original jpeg data from device |
 | odin1/cloud_raw               | senddtof          | Raw_Cloud Topic |
 | odin1/cloud_render            | sendcloudrender   | Render_Cloud Topic, processed with raw point cloud, rgb image, and calib.yaml from device |
 | odin1/cloud_slam              | sendcloudslam     | Slam_PointCloud Topic |
 | odin1/odometry                | sendodom          | Odom Topic |
-| odin1/odometry_high           | sendodom          | high frequency Odom Topic |
+| odin1/odometry_highfreq       | sendodom          | high frequency Odom Topic |
 | odin1/path                    | showpath          | Odom Path Topic |
 | tf                            | sendodom          | tf tree Topic |
-| odin1/depth_img_competetion   | senddepth         | Dense depth image Topic. Demo, high computing power required. One-to-one with odin1/image_undistort. To utilize the data please directly subscribe to this topic instead of echoing it. Original value is already depth data, no need for further convert. |
+| odin1/depth_img_competetion   | senddepth         | Dense depth image Topic. Demo, high computing power required. One-to-one with odin1/image/undistorted. To utilize the data please directly subscribe to this topic instead of echoing it. Original value is already depth data, no need for further convert. |
 | odin1/depth_img_competetion_cloud  | senddepth         | Dense Depth_Cloud Topic. Demo, high computing power required |
 | odin1/reprojected_image       | sendreprojection  | Reprojected cloud to image Topic. Projects cloud_slam to camera image using odometry. Processed on host device. |
 
@@ -520,6 +477,13 @@ See [docs/runtime_service_operations.md](docs/runtime_service_operations.md) for
 
 ## 5. FAQ
 ### 5.1 Segmentation fault upon re-launching host SDK
+
+If the process exits with signal 11 immediately after `device attach`, and GDB
+shows `libusb_get_next_timeout` called from
+`usb_data_xfer::event_monitor_routine`, see
+[USB startup crash](docs/usb_startup_crash.md). The driver includes a context
+adapter for this issue in the bundled static SDK; rebuild the driver to apply it.
+
 **Error Message**  
 No device connected after 60 seconds 
 
@@ -529,24 +493,27 @@ No device connected after 60 seconds
 2. Reinitialize Odin SDK # Execute SDK after device reboot
 
 
-### 5.2 Library binding failure during compilation
+### 5.2 SDK library not found / SDK 库找不到
 
-**Error Message**  
-ld: cannot find -llydHostApi or symbol lookup errors
+本仓库的 SDK 位于 `lib/`，ARM 使用 `liblydHostApi_arm.a`，
+x86_64 使用 `liblydHostApi_amd.a`。先检查架构、文件和 CMake 缓存：
 
-**Resolution** 
-
-1. Clean previous build artifacts
-
-ROS1 
-```shell
-rm -rf devel/ build/  
+```bash
+uname -m
+ls -lh ~/longxiaoze_ws/src/longxiaoze-robot-driver-odin_ros_driver/lib/
+grep -E 'LYD_HOST_API_LIB|CMAKE_HOME_DIRECTORY' ~/longxiaoze_ws/build/odin_ros_driver/CMakeCache.txt
 ```
-ROS2
-```shell
-rm -rf devel/ install/ log/ 
+
+移动过源码或更换架构后，从工作空间根目录重建：
+
+```bash
+source /opt/ros/humble/setup.bash
+cd ~/longxiaoze_ws
+colcon build --packages-select odin_ros_driver --cmake-clean-cache \
+  --cmake-args -DBUILD_SYSTEM=ROS2 -DBUILD_TESTING=ON
 ```
-2. Re-run script installation
+
+依赖及 OpenCV 运行库缺失的排查见 [install.md](install.md)。
 
 ### 5.3 Docker GUI passthrough failure
 
@@ -637,7 +604,7 @@ Disable odin1/image	with sendrgb = 0 in control_command.yaml and try again. If t
 
 **Resolution** 
 
-Purge the unused version of opencv and maintain a single complete version, then rebuild the driver and try again.
+Check the linked OpenCV and cv_bridge versions with `ldd`; see [install.md](install.md) and section 5.16. Match their build versions before rebuilding the driver.
 
 ### 5.10 ROS Driver printing "TF_OLD_DATA ignoring data" warning
 
@@ -888,142 +855,35 @@ Raising `usbfs_memory_mb` is a mitigation that increases headroom. The SDK USB l
 
 调大 `usbfs_memory_mb` 属于提高余量的缓解措施。SDK 的 USB 层已经对在途 OUT 传输数量做了上限限制（流控），并在每个终止状态释放传输缓冲，避免了此前"瞬时错误演变为不可恢复的内存泄漏雪崩"的问题。在慢主机上或传输大文件（如重定位地图）时，仍建议保留较大的 usbfs 池（例如 128 MB）。
 
-### 5.16 Driver crashes when publishing RGB due to cv_bridge / OpenCV version mismatch (without touching the system) / 出图时因 cv_bridge 与 OpenCV 版本不匹配崩溃（不动系统的解法）
+### 5.16 OpenCV / cv_bridge 版本与链接路径
 
-**Symptom / 现象**
+当前 `CMakeLists.txt` 使用 `find_package(OpenCV REQUIRED)`，
+没有自动从 `cv_bridge-extras.cmake` 读取版本并锁定 OpenCV 的实现。
+若需指定 OpenCV，需要通过 `OpenCV_DIR` 明确传入对应 CMake 配置目录，
+并检查 `cv_bridge` 的实际链接依赖。
 
-The driver connects and activates streams, but crashes (segfault / heap corruption) as soon as the first RGB frame is published. This is the same root cause as 5.9, seen when the host has **two OpenCV versions** installed: the ROS `cv_bridge` (from `/opt/ros/<distro>`) was compiled against one OpenCV (e.g. 4.2.0), while the driver links a different one (e.g. 4.5.4).
+本机实际路径为：
 
-驱动能连上、数据流也激活，但一发布第一帧 RGB 就崩溃（段错误 / 堆损坏）。这与 5.9 是同一根因，出现在主机装了**两个 OpenCV 版本**时：ROS 的 `cv_bridge`（来自 `/opt/ros/<distro>`）是针对某个 OpenCV（如 4.2.0）编译的，而驱动链接了另一个（如 4.5.4）。
+| 组件 | 路径 / 版本 |
+| --- | --- |
+| 驱动 OpenCV 配置 | `/usr/lib/cmake/opencv4`，4.8.0 |
+| 驱动 OpenCV 核心库 | `/usr/lib/libopencv_core.so.4.8.0` |
+| 系统 cv_bridge | `/opt/ros/humble/lib/libcv_bridge.so` |
+| cv_bridge 引用的 OpenCV 核心库 | `/usr/lib/aarch64-linux-gnu/libopencv_core.so.4.5.4d` |
 
-**Reason / 原因**
-
-With `sendrgb: 1`, the host decodes RGB with `cv::imdecode(...)` and publishes via `cv_bridge::toImageMsg()`. If the driver's OpenCV differs from `cv_bridge`'s, the same process loads two `libopencv_core` copies; a `cv::Mat` created by one and released by the other crosses an ABI boundary and corrupts the heap → crash on the first RGB frame.
-
-开启 `sendrgb: 1` 时，主机用 `cv::imdecode(...)` 解码 RGB，再经 `cv_bridge::toImageMsg()` 发布。若驱动的 OpenCV 与 `cv_bridge` 的不一致，同一进程会加载两份 `libopencv_core`；一个 `cv::Mat` 由其中一方创建、另一方释放，跨越 ABI 边界导致堆损坏 → 第一帧 RGB 到来时崩溃。
-
-**Which ROS distros are affected? / 哪些 ROS 版本会受影响？**
-
-This is **not** specific to any one ROS version. The crash happens whenever `cv_bridge`'s OpenCV ≠ the driver's OpenCV, regardless of ROS1 or ROS2. In practice, the most common trigger is on **Jetson / embedded platforms** where NVIDIA preinstalls a different OpenCV than the one ROS apt packages were compiled against.
-
-这**不是**某个 ROS 版本独有的问题。只要 `cv_bridge` 的 OpenCV ≠ 驱动的 OpenCV，无论 ROS1 还是 ROS2 都会崩。实际中最常见的触发场景是 **Jetson / 嵌入式平台**，NVIDIA 预装的 OpenCV 与 ROS apt 仓库编译 `cv_bridge` 时用的版本不一致。
-
-| ROS Distro | Type | vision_opencv branch | Typical system OpenCV |
-|---|---|---|---|
-| Kinetic (Ubuntu 16.04) | ROS1 | `kinetic` | 3.3.1 |
-| Melodic (Ubuntu 18.04) | ROS1 | `melodic` | 3.2 / 3.4 |
-| Noetic (Ubuntu 20.04) | ROS1 | `noetic` | 4.2.0 (apt) / 4.5.4 (Jetson) |
-| Foxy (Ubuntu 20.04) | ROS2 | `foxy` | 4.2.0 |
-| Galactic (Ubuntu 20.04) | ROS2 | `galactic` | 4.2.0 |
-| Humble (Ubuntu 22.04) | ROS2 | `humble` | 4.5.x |
-| Iron (Ubuntu 22.04) | ROS2 | `iron` | 4.5.x |
-| Jazzy (Ubuntu 24.04) | ROS2 | `rolling` | 4.5.x / 4.6.x |
-
-> If your system has only one OpenCV and it matches `cv_bridge`'s, you will **not** hit this bug — the driver builds and runs out of the box.
-> 如果系统只有一个 OpenCV 且与 `cv_bridge` 一致，你**不会**遇到此问题——驱动开箱即编即跑。
-
-**Resolution / 解决方案**
-
-5.9 suggests purging the extra OpenCV. If you must keep multiple OpenCV versions on the system, the alternative below **rebuilds `cv_bridge` inside the workspace** against the OpenCV the driver uses, so the driver and `cv_bridge` share one OpenCV. All artifacts go into the workspace only — **the system `/opt/ros` and system OpenCV are never modified**.
-
-5.9 的做法是卸载多余的 OpenCV。如果你必须在系统上保留多个 OpenCV 版本，可用下面的替代方案：**在工作区内基于驱动所用的 OpenCV 重新编译 `cv_bridge`**，让驱动与 `cv_bridge` 使用同一份 OpenCV。所有产物只落在工作区内，**系统 `/opt/ros` 与系统 OpenCV 完全不会被改动**。
-
-The driver's `CMakeLists.txt` reads the OpenCV version recorded in `cv_bridge-extras.cmake` and pins the driver to that exact version. It prefers a `cv_bridge` from the current workspace / a sourced overlay over the one in `/opt/ros`. If no `cv_bridge` is provided by the workspace and the exact version is unavailable, it falls back to the system default OpenCV with a warning (so a self-consistent single-OpenCV machine still builds out of the box).
-
-驱动的 `CMakeLists.txt` 会读取 `cv_bridge-extras.cmake` 里记录的 OpenCV 版本，并把驱动锁定到该版本；查找时优先使用当前工作区 / 已 source 的 overlay 里的 `cv_bridge`，其次才是 `/opt/ros`。若工作区未提供 `cv_bridge` 且系统缺该精确版本，则回退到系统默认 OpenCV 并给出警告（因此单一、一致 OpenCV 的机器仍可开箱即编）。
-
-**Step 0 — Identify your ROS distro / 步骤零 —— 确认你的 ROS 发行版**
-
-```shell
-echo $ROS_DISTRO
-# Example output: noetic  (ROS1)
-# Example output: foxy    (ROS2)
+```bash
+source /opt/ros/humble/setup.bash
+source ~/longxiaoze_ws/install/setup.bash
+ldd ~/longxiaoze_ws/install/odin_ros_driver/lib/odin_ros_driver/host_sdk_sample \
+  | grep -E 'cv_bridge|opencv|libtbb|not found'
 ```
 
-Use the matching branch from the table above for all commands below. The examples use `$ROS_DISTRO` as a placeholder — replace it (or export it) with your actual distro name.
+本机存在 OpenCV/TBB 多版本链接提示；短时实测已收到图像并正常退出。
+若出现首帧图像崩溃，应核对并统一驱动与 `cv_bridge` 的 OpenCV 构建版本。
+设备连接后立即发生、堆栈位于 `libusb_get_next_timeout` 的崩溃，
+对应 [USB 上下文修复](docs/usb_startup_crash.md)。
 
-以下命令中用 `$ROS_DISTRO` 作为占位符，请替换为你的实际发行版名称（或直接 `export ROS_DISTRO=<你的发行版>`）。
-
-**Step 1 — Download vision_opencv (matching your ROS distro branch) / 步骤一 —— 下载 vision_opencv（分支要与 ROS 发行版对应）**
-
-Clone it into the workspace `src/` next to `odin_ros_driver`. Use the branch matching your ROS distro from the table above.
-
-克隆到工作区 `src/` 下、与 `odin_ros_driver` 并列。分支要与你的 ROS 发行版对应（见上方表格）。
-
-```shell
-cd <your_workspace>/src
-git clone -b $ROS_DISTRO https://github.com/ros-perception/vision_opencv.git
-```
-
-> If `git clone -b $ROS_DISTRO` fails, your distro name may differ from the branch name (e.g. Jazzy → `rolling`). Check the table above and substitute the correct branch.
-> 如果 `git clone -b $ROS_DISTRO` 失败，可能是发行版名与分支名不一致（如 Jazzy → `rolling`）。请对照上方表格替换为正确的分支名。
-
-**Step 2 — Build cv_bridge FIRST, then build the driver / 步骤二 —— 先编 cv_bridge，再编驱动**
-
-**Order matters: `cv_bridge` must be built into the workspace before the driver.** The driver's `CMakeLists.txt` reads the workspace `cv_bridge-extras.cmake` at configure time to pin its OpenCV; if `cv_bridge` is not in the workspace yet, the driver only sees the system `cv_bridge` and links a mismatched OpenCV.
-
-**顺序很重要：必须先把 `cv_bridge` 编进工作区，再编驱动。** 驱动的 `CMakeLists.txt` 在配置阶段读取工作区的 `cv_bridge-extras.cmake` 来锁定 OpenCV；若此时工作区里还没有 `cv_bridge`，驱动只会看到系统 `cv_bridge`，从而链接到不匹配的 OpenCV。
-
-**ROS1 (catkin_make):**
-
-```shell
-# (1) Build cv_bridge into the workspace FIRST.
-#     先把 cv_bridge 编进工作区。
-source /opt/ros/$ROS_DISTRO/setup.bash
-cd <your_catkin_ws>
-catkin_make -DBUILD_SYSTEM=ROS1 -DCATKIN_WHITELIST_PACKAGES="cv_bridge" -j$(nproc)
-
-# (2) Then build the driver. It now finds the workspace cv_bridge and pins the
-#     driver's OpenCV to the exact same version (do NOT clean build/devel here).
-#     再编驱动。它会找到工作区的 cv_bridge 并把驱动 OpenCV 锁到同一版本（此步不要清 build/devel）。
-cd <your_catkin_ws>/src/odin_ros_driver/script
-./build_ros.sh
-```
-
-> **Simplest option / 最简做法**: a single full build compiles everything in the correct dependency order automatically — `catkin_make` builds `cv_bridge` (a dependency) before the driver, so you don't have to think about ordering:
-> 一条全量编译命令会**按依赖顺序自动**先编 `cv_bridge`、再编驱动，无需关心顺序：
-> ```shell
-> cd <your_catkin_ws> && catkin_make -DBUILD_SYSTEM=ROS1 -j$(nproc)
-> ```
-
-**ROS2 (colcon):**
-
-```shell
-# (1) Build cv_bridge into the workspace FIRST.
-#     先把 cv_bridge 编进工作区。
-source /opt/ros/$ROS_DISTRO/setup.bash
-cd <your_ros2_ws>
-colcon build --packages-select cv_bridge
-
-# (2) Then build the driver. Source the overlay so the driver finds the workspace cv_bridge.
-#     再编驱动。先 source overlay，让驱动找到工作区的 cv_bridge。
-source <your_ros2_ws>/install/setup.bash
-colcon build --packages-select odin_ros_driver
-```
-
-**Verification / 验证**
-
-```shell
-# ROS1
-source /opt/ros/$ROS_DISTRO/setup.bash
-source <your_catkin_ws>/devel/setup.bash
-ldd <your_catkin_ws>/devel/lib/odin_ros_driver/host_sdk_sample | grep -iE 'cv_bridge|opencv_core'
-
-# ROS2
-source /opt/ros/$ROS_DISTRO/setup.bash
-source <your_ros2_ws>/install/setup.bash
-ldd <your_ros2_ws>/install/odin_ros_driver/lib/odin_ros_driver/host_sdk_sample | grep -iE 'cv_bridge|opencv_core'
-```
-
-- Before Step 2 (crash) / 步骤二之前（会崩）：`libcv_bridge.so => /opt/ros/$ROS_DISTRO/lib/...`, and a mismatched `libopencv_core.so.<old>` is mixed in / 且混入不匹配的 `libopencv_core.so.<旧版本>`。
-- After Step 2 (fixed) / 步骤二之后（已修复）：`libcv_bridge.so => <your_workspace>/...`, and all `libopencv_*` are a single consistent version / 且所有 `libopencv_*` 为同一个版本。
-
-Then run the driver and confirm `/odin1/image` publishes steadily without crashing.
-
-随后运行驱动，确认 `/odin1/image` 稳定发布且不再崩溃。
-
-> Important / 重要: run in a clean ROS environment; do not mix another ROS distro into `LD_LIBRARY_PATH` (e.g. don't source both noetic and foxy), or `cv_bridge` may resolve back to a mismatched OpenCV.
-> 请在干净的 ROS 环境中运行；不要把另一个 ROS 发行版混入 `LD_LIBRARY_PATH`（如同时 source noetic 和 foxy），否则 `cv_bridge` 可能又解析回不匹配的 OpenCV。
+终端历史中的 Jetson OpenCV 运行库补装方法和检查命令见 [install.md](install.md)。
 
 ## 6.  Contact Information​​
 
