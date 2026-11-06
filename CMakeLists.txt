@@ -432,6 +432,11 @@ elseif(ROS_VERSION STREQUAL "ROS2")
         RUNTIME DESTINATION lib/${PROJECT_NAME}
     )
     
+    # Install the visualization-only odometry-to-path helper.
+    install(PROGRAMS script/odom_path_visualizer.py
+        DESTINATION lib/${PROJECT_NAME}
+    )
+
     # Install package.xml
     install(FILES package.xml
         DESTINATION share/${PROJECT_NAME}

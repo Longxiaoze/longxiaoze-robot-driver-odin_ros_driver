@@ -1,0 +1,161 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+    Property Tree Widget:
+      Expanded:
+        - /Global Options1
+        - /SLAM Map1
+        - /Pose Path1
+      Splitter Ratio: 0.5
+  - Class: rviz_common/Views
+    Name: Views
+  - Class: rviz_common/Time
+    Name: Time
+    SyncMode: 0
+    SyncSource: SLAM Current
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+      Cell Size: 1
+      Color: 100; 100; 100
+      Plane: XY
+      Plane Cell Count: 20
+      Reference Frame: <Fixed Frame>
+      Value: true
+    # RViz selects the compressed transport from the topic suffix.
+    # Requires the compressed_image_transport package; no republish node is needed.
+    - Class: rviz_default_plugins/Image
+      Name: Recorded Image
+      Enabled: true
+      Max Value: 1
+      Median window: 5
+      Min Value: 0
+      Normalize Range: true
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /odin1/image/compressed
+      Value: true
+    - Class: rviz_default_plugins/PointCloud2
+      Name: Raw Cloud
+      Enabled: false
+      Alpha: 1
+      Autocompute Intensity Bounds: true
+      Channel Name: intensity
+      Color Transformer: Intensity
+      Decay Time: 0
+      Position Transformer: XYZ
+      Selectable: true
+      Size (Pixels): 2
+      Size (m): 0.01
+      Style: Points
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 100
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /odin1/cloud_raw
+      Use Fixed Frame: true
+      Use rainbow: true
+      Value: false
+    - Class: rviz_default_plugins/PointCloud2
+      Name: SLAM Current
+      Enabled: true
+      Alpha: 1
+      Channel Name: rgb
+      Color Transformer: RGB8
+      Decay Time: 0
+      Position Transformer: XYZ
+      Selectable: true
+      Size (Pixels): 3
+      Size (m): 0.01
+      Style: Points
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 100
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /odin1/cloud_slam
+      Use Fixed Frame: true
+      Value: true
+    - Class: rviz_default_plugins/PointCloud2
+      Name: SLAM Map
+      Enabled: true
+      Alpha: 1
+      Channel Name: rgb
+      Color Transformer: RGB8
+      # Keep a bounded history while replaying long recordings.
+      Decay Time: 10
+      Position Transformer: XYZ
+      Selectable: true
+      Size (Pixels): 2
+      Size (m): 0.01
+      Style: Points
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        Filter size: 100
+        History Policy: Keep Last
+        Reliability Policy: Best Effort
+        Value: /odin1/cloud_slam
+      Use Fixed Frame: true
+      Value: true
+    # The helper converts recorded odometry to a continuous line, without pose axes.
+    - Class: rviz_default_plugins/Path
+      Name: Pose Path
+      Enabled: true
+      Alpha: 1
+      Buffer Length: 1
+      Color: 25; 255; 0
+      Line Style: Billboards
+      Line Width: 0.03
+      Pose Style: None
+      Topic:
+        Depth: 1
+        Durability Policy: Transient Local
+        Filter size: 100
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /odin1/visualization_path
+      Value: true
+  Enabled: true
+  Global Options:
+    Background Color: 32; 32; 32
+    Fixed Frame: odom
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/Interact
+      Hide Inactive Objects: true
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+  Transformation:
+    Current:
+      Class: rviz_default_plugins/TF
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Name: Current View
+      Distance: 15
+      Focal Point:
+        X: 0
+        Y: 0
+        Z: 0
+      Near Clip Distance: 0.01
+      Pitch: 0.6
+      Target Frame: odom
+      Yaw: 0.8
+    Saved: ~
+Window Geometry:
+  Width: 1440
+  Height: 900
